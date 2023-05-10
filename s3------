@@ -1,0 +1,137 @@
+variable "tags" {
+    description = "tags to set on the bucket"
+    type = map(string)
+    default = {
+        Program      = "sysops"
+        Project      = "terraform"
+        Environment  = "lower"
+        Name         = "sysops-tfm-lower-usac-org"
+    } 
+}
+
+variable "aws_s3_bucket" {
+    type = string
+    default = "sysops-tfm-lower-usac-org"
+  
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-gov-west-1"
+}
+
+variable "force_destroy" {
+  type    = string
+  default = false
+}
+
+resource "aws_s3_bucket" "aws_s3_bucket" {
+
+  bucket = var.aws_s3_bucket
+
+  force_destroy = var.force_destroy
+
+  tags = var.tags
+}
+
+resource "aws_s3_bucket_versioning" "aws_s3_bucket" {
+
+  bucket = aws_s3_bucket.aws_s3_bucket.bucket
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "aws_s3_bucket" {
+  bucket = aws_s3_bucket.aws_s3_bucket.bucket
+  rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+
+}
+
+resource "aws_s3_bucket_public_access_block" "aws_s3_bucket" {
+  bucket = aws_s3_bucket.aws_s3_bucket.bucket
+
+  block_public_policy = true
+  block_public_acls   = true
+  restrict_public_buckets = true
+  ignore_public_acls = true
+}
+
+  resource "aws_iam_user" "s3_bucket_user" {
+    name = var.aws_s3_bucket
+    
+  }
+
+  resource "aws_iam_policy" "aws_s3_bucket_policy" {  
+    name = "aws_s3_bucket_policy-${var.aws_s3_bucket}"
+    policy = jsonencode(
+      {
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "s3:*",
+            "Resource": "arn:aws-us-gov:s3:::${var.aws_s3_bucket}/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListAllMyBuckets"
+            ],
+            "Resource": "arn:aws-us-gov:s3:::${var.aws_s3_bucket}/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetBucketLocation"
+            ],
+            "Resource": "arn:aws-us-gov:s3:::${var.aws_s3_bucket}"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:GetObjectVersion",
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion"
+            ],
+            "Resource": "arn:aws-us-gov:s3:::${var.aws_s3_bucket}/*"
+        }
+    ]
+}
+    )
+    
+  }
+
+  resource "aws_iam_user_policy_attachment" "aws_s3_bucket_policy_attachment" {
+    user = var.aws_s3_bucket
+    policy_arn = aws_iam_policy.aws_s3_bucket_policy.arn
+    
+  }
+
+  resource "aws_s3_bucket_policy" "aws_s3_bucket" {
+  bucket = var.aws_s3_bucket
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Id": "Policy1643297892890",
+    "Statement": [
+        {
+            "Sid": "Stmt1643297888916",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS":  "arn:aws-us-gov:iam::292428138239:user/${var.aws_s3_bucket}"
+            },
+            "Action": "s3:*",
+            "Resource": "arn:aws-us-gov:s3:::${var.aws_s3_bucket}"
+        }
+    ]
+})
+}
